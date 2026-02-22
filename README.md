@@ -1,8 +1,5 @@
 # AI-Enabled Autism Screening MVP
 
-**Final Year B.Tech Project**  
-Team: [Your Name] & [Partner's Name] | [Your College Name]
-
 ## What is This?
 A mobile application that helps parents screen their young children (6 months - 5 years) for potential autism risk using:
 - Computer vision analysis of home video recordings
@@ -45,13 +42,3 @@ npm install
 npx expo start
 ```
 Scan the QR code with Expo Go app on your phone.
-
-## Current Status
-- [x] Week 1: Project setup, backend skeleton, 5 placeholder screens
-- [ ] Week 2: MediaPipe integration
-- [ ] Week 3: Feature extraction pipeline + M-CHAT-R questionnaire
-- [ ] Week 4: Scoring model + results screen
-- [ ] Week 5: Full integration
-- [ ] Week 6: UI polish + history screen
-- [ ] Week 7: Explainability + documentation
-- [ ] Week 8: Testing + final presentation
