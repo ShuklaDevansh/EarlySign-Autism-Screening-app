@@ -1,90 +1,109 @@
-# main.py
-# This is the main file for our Python backend server.
-# FastAPI is the framework that lets us create web endpoints (URLs) 
-# that our mobile app can send requests to.
+# main.py — FastAPI entry point for autism screening backend
 
-from fastapi import FastAPI
+import os
+import sys
+import uuid
+import tempfile
+
+# Add backend folder to path so mediapipe_pipeline imports work
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-# Create the FastAPI application instance
-# Think of this as creating the server object
+from mediapipe_pipeline.feature_extractor import extract_features
+from mediapipe_pipeline.scoring_model import compute_risk_score
+
+# Create the FastAPI app
 app = FastAPI(
-    title="Autism Screening API",
-    description="Backend API for AI-Enabled Autism Screening MVP",
+    title="EarlySign Autism Screening API",
     version="1.0.0"
 )
 
-# CORS (Cross-Origin Resource Sharing) setup
-# This is CRITICAL. Without this, your React Native app cannot talk to this server.
-# It's a security feature of web browsers/apps. We allow all origins for development.
+# Allow React Native app to call this server from any origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],      # Allow requests from any address
-    allow_credentials=True,
-    allow_methods=["*"],      # Allow all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],      # Allow all headers
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 
-# This is your first "endpoint" - a URL that does something when visited
-# The "@app.get("/")" means: when someone visits the root URL, run this function
+
 @app.get("/")
-def home():
-    """
-    Root endpoint. Just confirms the server is running.
-    When you visit http://your-server-url/ in a browser, you'll see this response.
-    """
-    return {
-        "message": "Autism Screening API is running!",
-        "status": "healthy",
-        "version": "1.0.0"
-    }
-
-# Health check endpoint - tells us the server is alive
-@app.get("/health")
 def health_check():
-    """
-    Health check endpoint.
-    We'll use this to verify the server is alive before the demo.
-    """
-    return {
-        "status": "healthy",
-        "message": "Server is running correctly"
-    }
-
-# Test endpoint to verify we can receive data from the app
-@app.get("/test")
-def test_endpoint():
-    """
-    Test endpoint to verify API is working.
-    """
-    return {
-        "status": "success",
-        "message": "Backend is connected and working!",
-        "next_step": "Week 2 - MediaPipe integration coming soon"
-    }
+    # Simple check to confirm server is running
+    return {"status": "ok", "message": "EarlySign API is running"}
 
 
+@app.post("/analyze-video")
+async def analyze_video(
+    video: UploadFile = File(...),
+    questionnaire_score: int = Form(...)
+):
+    # Validate questionnaire score range
+    if not (0 <= questionnaire_score <= 20):
+        raise HTTPException(
+            status_code=400,
+            detail="questionnaire_score must be between 0 and 20"
+        )
 
-'''
-### Step 15: Run the Server Locally
+    # Validate file is a video
+    if not video.filename.lower().endswith((".mp4", ".mov", ".avi", ".mkv")):
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file must be a video (.mp4, .mov, .avi, .mkv)"
+        )
 
-In your terminal (with venv activated, inside the backend folder):
-```
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
+    # Save uploaded video to a temp file so MediaPipe can read it
+    suffix     = os.path.splitext(video.filename)[1]
+    temp_path  = os.path.join(tempfile.gettempdir(), f"earlysign_{uuid.uuid4().hex}{suffix}")
 
-Breaking this down:
-- `uvicorn` → the program that runs our FastAPI server
-- `main:app` → look in `main.py` file, find the variable called `app`
-- `--reload` → automatically restart when you change code (useful during development)
-- `--host 0.0.0.0` → accept connections from any device on the network (not just your computer)
-- `--port 8000` → run on port 8000
+    try:
+        # Write uploaded bytes to temp file
+        contents = await video.read()
 
-You should see:
-```
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process
-INFO:     Started server process
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-'''
+        # Reject files larger than 200MB
+        if len(contents) > 200 * 1024 * 1024:
+            raise HTTPException(
+                status_code=413,
+                detail="Video file too large. Please upload a video under 200MB."
+            )
+
+        with open(temp_path, "wb") as f:
+            f.write(contents)
+
+        # Run feature extraction pipeline
+        feature_vector = extract_features(temp_path)
+
+        # Handle case where video could not be processed
+        if feature_vector is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Could not process video. Ensure the video is valid and the child's face is visible."
+            )
+
+        # Handle case where too few frames were detected
+        if feature_vector["_meta"]["frames_processed"] == 0:
+            raise HTTPException(
+                status_code=422,
+                detail="No frames could be processed from this video. Please try a different video."
+            )
+
+        # Run scoring model
+        result = compute_risk_score(feature_vector, questionnaire_score)
+
+        # Add raw features and meta to response for frontend explainability screen
+        result["raw_features"] = {
+            "avg_gaze_deviation"     : feature_vector["avg_gaze_deviation"],
+            "social_gaze_percentage" : feature_vector["social_gaze_percentage"],
+            "expression_variance"    : feature_vector["expression_variance"],
+            "repetitive_motion_score": feature_vector["repetitive_motion_score"]
+        }
+        result["meta"] = feature_vector["_meta"]
+
+        return result
+
+    finally:
+        # Always delete temp file whether or not processing succeeded
+        if os.path.exists(temp_path):
+            os.remove(temp_path)

@@ -1,12 +1,28 @@
+# Dependencies
 node_modules/
+
+# Expo generated
 .expo/
 dist/
+web-build/
+
+# Debug logs
 npm-debug.*
+
+# Mobile signing credentials (never commit these)
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
+
+# Patch files
 *.orig.*
-web-build/
+
+# Environment secrets
 .env
+*.env
+
+# OS files
+.DS_Store
+Thumbs.db
