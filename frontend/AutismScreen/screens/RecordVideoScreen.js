@@ -1,84 +1,209 @@
-// RecordVideoScreen.js
-// This screen will eventually let parents record their child's video.
-// For Week 1, it's a placeholder.
-
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View, Text, TouchableOpacity,
+  StyleSheet, Alert, ScrollView
+} from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 
 export default function RecordVideoScreen({ navigation }) {
+  // stores the selected video file object — null means nothing selected yet
+  const [selectedVideo, setSelectedVideo] = useState(null);
+
+  const handleSelectVideo = async () => {
+    try {
+      // open the phone gallery filtered to video files only
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'video/*',       // only show video files
+        copyToCacheDirectory: true,  // copy file so we can read it
+      });
+
+      // user cancelled the picker — do nothing
+      if (result.canceled) {
+        return;
+      }
+
+      // result.assets is an array — we only need the first file
+      const file = result.assets[0];
+
+      // basic size check — warn if video is over 200MB
+      if (file.size && file.size > 200 * 1024 * 1024) {
+        Alert.alert(
+          'Video Too Large',
+          'Please select a video under 200MB. Try trimming it first.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // store the selected file in state
+      setSelectedVideo(file);
+
+    } catch (error) {
+      Alert.alert('Error', 'Could not select video. Please try again.');
+    }
+  };
+
+  const handleNext = () => {
+    // pass the video file forward to QuestionnaireScreen
+    navigation.navigate('Questionnaire', { videoFile: selectedVideo });
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Record Video</Text>
-      <Text style={styles.description}>
-        📹 Camera will go here in Week 2.{'\n\n'}
-        Parent will record a 3-5 minute video of their child during free play.
+    <ScrollView contentContainerStyle={styles.container}>
+
+      {/* Title */}
+      <Text style={styles.title}>Step 1: Upload Video</Text>
+
+      {/* Instructions box */}
+      <View style={styles.instructionBox}>
+        <Text style={styles.instructionTitle}>📋 Recording Instructions</Text>
+        <Text style={styles.instructionText}>• Record your child during free play</Text>
+        <Text style={styles.instructionText}>• Duration: 3 to 5 minutes</Text>
+        <Text style={styles.instructionText}>• Place phone at child's eye level</Text>
+        <Text style={styles.instructionText}>• Make sure face is clearly visible</Text>
+        <Text style={styles.instructionText}>• Use good lighting — avoid dark rooms</Text>
+        <Text style={styles.instructionText}>• Keep video under 200MB</Text>
+      </View>
+
+      {/* Select video button */}
+      <TouchableOpacity style={styles.selectButton} onPress={handleSelectVideo}>
+        <Text style={styles.selectButtonText}>📁 Select Video from Gallery</Text>
+      </TouchableOpacity>
+
+      {/* Show selected file name */}
+      {selectedVideo && (
+        <View style={styles.selectedBox}>
+          <Text style={styles.selectedLabel}>✅ Video Selected:</Text>
+          <Text style={styles.selectedName} numberOfLines={2}>
+            {selectedVideo.name}
+          </Text>
+          <Text style={styles.selectedSize}>
+            Size: {selectedVideo.size
+              ? (selectedVideo.size / (1024 * 1024)).toFixed(1) + ' MB'
+              : 'Unknown'}
+          </Text>
+        </View>
+      )}
+
+      {/* Next button — disabled until video is selected */}
+      <TouchableOpacity
+        style={[styles.nextButton, !selectedVideo && styles.nextButtonDisabled]}
+        onPress={handleNext}
+        disabled={!selectedVideo}
+      >
+        <Text style={styles.nextButtonText}>Next: Questionnaire →</Text>
+      </TouchableOpacity>
+
+      {/* Disclaimer */}
+      <Text style={styles.disclaimer}>
+        🔒 Videos are processed securely and not stored permanently.
+        This is a screening tool, not a diagnostic tool.
       </Text>
 
-      {/* Simulate moving forward in the flow */}
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate('Questionnaire')}
-      >
-        <Text style={styles.buttonText}>Next: Questionnaire →</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}
-      >
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.notice}>Week 1 - Placeholder Screen</Text>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: '#f0f4ff',
     padding: 20,
+    paddingTop: 30,
   },
   title: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#1a56db',
-    marginBottom: 20,
+    marginBottom: 24,
   },
-  description: {
+  instructionBox: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
+    marginBottom: 24,
+    borderLeftWidth: 4,
+    borderLeftColor: '#1a56db',
+    elevation: 2,
+  },
+  instructionTitle: {
     fontSize: 16,
+    fontWeight: '700',
+    color: '#1a56db',
+    marginBottom: 10,
+  },
+  instructionText: {
+    fontSize: 14,
     color: '#374151',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 40,
+    marginBottom: 6,
+    lineHeight: 20,
   },
-  button: {
+  selectButton: {
     backgroundColor: '#1a56db',
-    paddingVertical: 15,
-    paddingHorizontal: 40,
-    borderRadius: 10,
-    marginBottom: 15,
-    width: '80%',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: '100%',
     alignItems: 'center',
+    marginBottom: 20,
+    elevation: 3,
   },
-  buttonText: {
-    color: 'white',
-    fontSize: 18,
+  selectButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
     fontWeight: '600',
   },
-  backButton: {
-    marginTop: 10,
+  selectedBox: {
+    backgroundColor: '#ecfdf5',
+    borderRadius: 12,
+    padding: 14,
+    width: '100%',
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#10b981',
   },
-  backText: {
-    color: '#6b7280',
-    fontSize: 16,
+  selectedLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#065f46',
+    marginBottom: 4,
   },
-  notice: {
-    marginTop: 30,
-    color: '#9ca3af',
+  selectedName: {
+    fontSize: 13,
+    color: '#374151',
+    marginBottom: 4,
+  },
+  selectedSize: {
     fontSize: 12,
+    color: '#6b7280',
+  },
+  nextButton: {
+    backgroundColor: '#1a56db',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 20,
+    elevation: 3,
+  },
+  nextButtonDisabled: {
+    // greyed out when no video selected
+    backgroundColor: '#93c5fd',
+  },
+  nextButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  disclaimer: {
+    fontSize: 11,
+    color: '#9ca3af',
+    textAlign: 'center',
+    lineHeight: 16,
+    paddingHorizontal: 10,
+    marginBottom: 20,
   },
 });
