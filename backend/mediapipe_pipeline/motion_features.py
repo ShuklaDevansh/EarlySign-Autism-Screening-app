@@ -5,8 +5,7 @@ import os
 import warnings
 warnings.filterwarnings("ignore")
 
-# initialize once at module level
-mp_holistic = mp.solutions.holistic
+
 
 # wrist landmark indices — fixed by MediaPipe pose topology
 LEFT_WRIST  = 15

@@ -5,10 +5,6 @@ import os
 import warnings
 warnings.filterwarnings("ignore")
 
-# initialize once at module level — faster than reinitializing per frame
-mp_face_mesh = mp.solutions.face_mesh
-mp_drawing   = mp.solutions.drawing_utils
-
 # left eye landmark indices — fixed by MediaPipe face topology
 LEFT_EYE_TOP_LID    = 159
 LEFT_EYE_BOTTOM_LID = 145

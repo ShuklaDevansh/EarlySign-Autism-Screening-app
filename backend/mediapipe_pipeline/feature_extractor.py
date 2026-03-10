@@ -16,10 +16,6 @@ from mediapipe_pipeline.motion_features import (
 )
 from mediapipe_pipeline.gaze_landmarks import compute_gaze_deviation
 
-# initialize models using legacy solutions API
-mp_face_mesh = mp.solutions.face_mesh
-mp_holistic  = mp.solutions.holistic
-
 # gaze deviation below this = looking roughly forward (Tariq et al. 2018)
 SOCIAL_GAZE_THRESHOLD = 0.15
 
@@ -29,7 +25,9 @@ SAMPLE_EVERY = 30
 
 def extract_features(video_path: str) -> dict:
     # master function — takes video path, returns 4-feature vector + meta
-
+    mp_face_mesh = mp.solutions.face_mesh
+    mp_holistic  = mp.solutions.holistic
+    
     if not os.path.exists(video_path):
         print(f"[ERROR] Video not found: {video_path}")
         return None
