@@ -1,3 +1,7 @@
+import { db } from '../firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+
+
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
@@ -92,6 +96,8 @@ export default function ResultsScreen({ navigation, route }) {
 
       setResult(response.data);
 
+      await saveToFirestore(response.data, questionnaireScore);
+
     } catch (err) {
       // handle different error types clearly
       if (err.code === 'ECONNABORTED') {
@@ -104,6 +110,25 @@ export default function ResultsScreen({ navigation, route }) {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveToFirestore = async (resultData, qScore) => {
+  try {
+    // save session result to Firebase Firestore
+    await addDoc(collection(db, 'screenings'), {
+      timestamp              : serverTimestamp(),
+      risk_level             : resultData.risk_level,
+      final_score            : resultData.final_score,
+      video_risk_score       : resultData.video_risk_score,
+      questionnaire_score    : qScore,
+      top_contributing_feature: resultData.top_contributing_feature,
+      flags                  : resultData.flags,
+    });
+    console.log('[Firebase] Session saved successfully');
+  } catch (error) {
+    // don't crash the app if Firebase save fails — just log it
+    console.log('[Firebase] Save failed:', error);
     }
   };
 
