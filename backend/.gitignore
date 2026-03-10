@@ -15,6 +15,9 @@ mediapipe_pipeline/videos/
 # Generated output frames
 mediapipe_pipeline/outputs/
 
+# Models
+mediapipe_pipeline/models/
+
 # Environment secrets
 .env
 *.env
