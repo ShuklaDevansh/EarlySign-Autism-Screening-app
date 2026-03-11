@@ -124,6 +124,12 @@ def extract_features(video_path: str) -> dict:
     repetitive_motion_score = compute_repetitive_motion_score(
         left_wrist_ys, right_wrist_ys
     )
+    # raise a clear error if face was barely detected across the whole video
+    if frames_processed < 5:
+        raise ValueError(
+            "Face not detected in most frames. "
+            "Please retake the video in better lighting with the child's face clearly visible."
+        )
 
     return {
         "avg_gaze_deviation"     : round(avg_gaze_deviation,      4),
