@@ -1,11 +1,10 @@
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
-
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Alert
+  ScrollView, ActivityIndicator
 } from 'react-native';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
@@ -37,11 +36,11 @@ const THERAPY_SUGGESTIONS = {
   ],
 };
 
-// colors for each risk level
+// solid colors for risk badge — white text on colored background
 const RISK_COLORS = {
-  LOW    : { background: '#ecfdf5', border: '#10b981', text: '#065f46' },
-  MEDIUM : { background: '#fef3c7', border: '#f59e0b', text: '#92400e' },
-  HIGH   : { background: '#fef2f2', border: '#ef4444', text: '#991b1b' },
+  LOW    : { background: '#2ecc71', border: '#27ae60', text: '#ffffff' },
+  MEDIUM : { background: '#f39c12', border: '#e67e22', text: '#ffffff' },
+  HIGH   : { background: '#e74c3c', border: '#c0392b', text: '#ffffff' },
 };
 
 // plain English labels for feature names
@@ -53,15 +52,12 @@ const FEATURE_LABELS = {
 };
 
 export default function ResultsScreen({ navigation, route }) {
-  // receive video and questionnaire score from QuestionnaireScreen
   const { videoFile, questionnaireScore } = route.params || {};
 
-  // state variables
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(null);
-  const [result,   setResult]   = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+  const [result,  setResult]  = useState(null);
 
-  // call the API as soon as the screen loads
   useEffect(() => {
     callAPI();
   }, []);
@@ -69,41 +65,29 @@ export default function ResultsScreen({ navigation, route }) {
   const callAPI = async () => {
     setLoading(true);
     setError(null);
-
     try {
-      // build multipart form data — same format as Postman test
       const formData = new FormData();
-
-      // append video file
       formData.append('video', {
         uri  : videoFile.uri,
         name : videoFile.name,
         type : videoFile.mimeType || 'video/mp4',
       });
-
-      // append questionnaire score as string
       formData.append('questionnaire_score', String(questionnaireScore));
 
-      // send POST request to Render backend
       const response = await axios.post(
         `${API_BASE_URL}/analyze-video`,
         formData,
         {
           headers : { 'Content-Type': 'multipart/form-data' },
-          timeout : 300000, // 5 minutes — video processing takes time
+          timeout : 300000,
         }
       );
-
       setResult(response.data);
-
       await saveToFirestore(response.data, questionnaireScore);
-
     } catch (err) {
-      // handle different error types clearly
       if (err.code === 'ECONNABORTED') {
         setError('Request timed out. The video may be too long. Please try a shorter video.');
       } else if (err.response) {
-        // server responded with an error code
         setError(`Server error: ${err.response.status}. ${err.response.data?.detail || ''}`);
       } else {
         setError('Could not connect to server. Check your internet connection and try again.');
@@ -114,21 +98,19 @@ export default function ResultsScreen({ navigation, route }) {
   };
 
   const saveToFirestore = async (resultData, qScore) => {
-  try {
-    // save session result to Firebase Firestore
-    await addDoc(collection(db, 'screenings'), {
-      timestamp              : serverTimestamp(),
-      risk_level             : resultData.risk_level,
-      final_score            : resultData.final_score,
-      video_risk_score       : resultData.video_risk_score,
-      questionnaire_score    : qScore,
-      top_contributing_feature: resultData.top_contributing_feature,
-      flags                  : resultData.flags,
-    });
-    console.log('[Firebase] Session saved successfully');
-  } catch (error) {
-    // don't crash the app if Firebase save fails — just log it
-    console.log('[Firebase] Save failed:', error);
+    try {
+      await addDoc(collection(db, 'screenings'), {
+        timestamp               : serverTimestamp(),
+        risk_level              : resultData.risk_level,
+        final_score             : resultData.final_score,
+        video_risk_score        : resultData.video_risk_score,
+        questionnaire_score     : qScore,
+        top_contributing_feature: resultData.top_contributing_feature,
+        flags                   : resultData.flags,
+      });
+      console.log('[Firebase] Session saved successfully');
+    } catch (error) {
+      console.log('[Firebase] Save failed:', error);
     }
   };
 
@@ -136,12 +118,22 @@ export default function ResultsScreen({ navigation, route }) {
   if (loading) {
     return (
       <View style={styles.centeredContainer}>
-        <ActivityIndicator size="large" color="#1a56db" />
+        {/* brain emoji to fill empty space above spinner */}
+        <Text style={styles.loadingEmoji}>🧠</Text>
         <Text style={styles.loadingTitle}>Analyzing Video...</Text>
+        <ActivityIndicator size="large" color="#1a73e8" style={{ marginVertical: 16 }} />
         <Text style={styles.loadingSubtitle}>
           This takes 1-3 minutes depending on video length.{'\n'}
           Please keep the app open.
         </Text>
+        {/* tip card below spinner so screen doesn't look empty */}
+        <View style={styles.loadingTipCard}>
+          <Text style={styles.loadingTipTitle}>💡 While you wait</Text>
+          <Text style={styles.loadingTipText}>
+            Our AI is analyzing your child's gaze patterns, facial expressions,
+            and movement to generate a risk score.
+          </Text>
+        </View>
       </View>
     );
   }
@@ -167,26 +159,22 @@ export default function ResultsScreen({ navigation, route }) {
   }
 
   // --- Results State ---
-  const riskLevel   = result.risk_level;
-  const colors      = RISK_COLORS[riskLevel];
-  const suggestions = THERAPY_SUGGESTIONS[riskLevel];
+  const riskLevel    = result.risk_level;
+  const colors       = RISK_COLORS[riskLevel];
+  const suggestions  = THERAPY_SUGGESTIONS[riskLevel];
   const scorePercent = Math.round(result.final_score * 100);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
 
-      <Text style={styles.title}>Screening Results</Text>
-
-      {/* Risk Level Badge */}
+      {/* Risk Level Badge — solid color, white text, no pale washed look */}
       <View style={[styles.riskBadge, {
         backgroundColor: colors.background,
         borderColor    : colors.border,
       }]}>
-        <Text style={[styles.riskLabel, { color: colors.text }]}>Risk Level</Text>
-        <Text style={[styles.riskLevel, { color: colors.text }]}>{riskLevel}</Text>
-        <Text style={[styles.riskScore, { color: colors.text }]}>
-          Combined Score: {scorePercent}%
-        </Text>
+        <Text style={styles.riskLabel}>Risk Level</Text>
+        <Text style={styles.riskLevel}>{riskLevel}</Text>
+        <Text style={styles.riskScore}>Combined Score: {scorePercent}%</Text>
       </View>
 
       {/* Score Breakdown */}
@@ -210,7 +198,7 @@ export default function ResultsScreen({ navigation, route }) {
         </View>
       </View>
 
-      {/* Top Contributing Feature */}
+      {/* Key Finding */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>🔍 Key Finding</Text>
         <Text style={styles.keyFinding}>
@@ -249,22 +237,25 @@ export default function ResultsScreen({ navigation, route }) {
         </View>
       )}
 
-      {/* Therapy Suggestions */}
+      {/* Suggested Activities — chip style instead of plain bullets */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>💡 Suggested Activities</Text>
         {suggestions.map((suggestion, index) => (
-          <Text key={index} style={styles.suggestionText}>
-            • {suggestion}
-          </Text>
+          // each suggestion is its own mini card chip
+          <View key={index} style={styles.suggestionChip}>
+            <View style={styles.suggestionDot} />
+            <Text style={styles.suggestionText}>{suggestion}</Text>
+          </View>
         ))}
       </View>
 
-      {/* Doctor recommendation for medium and high */}
+      {/* Doctor recommendation — blue theme, not alarming red */}
       {(riskLevel === 'MEDIUM' || riskLevel === 'HIGH') && (
         <View style={styles.consultBox}>
+          <Text style={styles.consultTitle}>👨‍⚕️ Professional Evaluation Recommended</Text>
           <Text style={styles.consultText}>
-            👨‍⚕️ We recommend consulting a pediatrician or developmental
-            specialist for a professional evaluation.
+            We recommend consulting a pediatrician or developmental specialist
+            for a professional evaluation.
           </Text>
         </View>
       )}
@@ -297,24 +288,21 @@ const styles = StyleSheet.create({
   centeredContainer: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center',     // truly centered vertically
     backgroundColor: '#f0f4ff',
     padding: 30,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1a56db',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
+
   // loading
+  loadingEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
   loadingTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#1a56db',
-    marginTop: 20,
-    marginBottom: 10,
+    color: '#1a73e8',
+    marginBottom: 4,
   },
   loadingSubtitle: {
     fontSize: 14,
@@ -322,23 +310,32 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  // error
-  errorIcon: { fontSize: 48, marginBottom: 16 },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#991b1b',
-    marginBottom: 10,
+  loadingTipCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 28,
+    width: '100%',
+    elevation: 2,
   },
-  errorMessage: {
+  loadingTipTitle: {
     fontSize: 14,
-    color: '#374151',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
+    fontWeight: '700',
+    color: '#1a73e8',
+    marginBottom: 8,
   },
-  retryButton: {
-    backgroundColor: '#1a56db',
+  loadingTipText: {
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 20,
+  },
+
+  // error
+  errorIcon    : { fontSize: 48, marginBottom: 16 },
+  errorTitle   : { fontSize: 20, fontWeight: '700', color: '#991b1b', marginBottom: 10 },
+  errorMessage : { fontSize: 14, color: '#374151', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  retryButton  : {
+    backgroundColor: '#1a73e8',
     paddingVertical: 14,
     paddingHorizontal: 40,
     borderRadius: 10,
@@ -346,21 +343,27 @@ const styles = StyleSheet.create({
     width: '80%',
     alignItems: 'center',
   },
-  retryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '600' },
-  backButton: { marginTop: 8 },
-  backButtonText: { color: '#6b7280', fontSize: 15 },
-  // risk badge
+  retryButtonText : { color: '#ffffff', fontSize: 16, fontWeight: '600' },
+  backButton      : { marginTop: 8 },
+  backButtonText  : { color: '#6b7280', fontSize: 15 },
+
+  // risk badge — solid background, all text white
   riskBadge: {
-    borderWidth: 2,
+    borderWidth: 0,               // no border needed with solid background
     borderRadius: 16,
-    padding: 20,
+    padding: 24,
     alignItems: 'center',
     marginBottom: 20,
-    elevation: 3,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
-  riskLabel: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
-  riskLevel: { fontSize: 36, fontWeight: 'bold', marginBottom: 4 },
-  riskScore: { fontSize: 14 },
+  riskLabel : { fontSize: 13, fontWeight: '600', color: '#ffffff', opacity: 0.85, marginBottom: 4 },
+  riskLevel : { fontSize: 40, fontWeight: '800', color: '#ffffff', marginBottom: 4, letterSpacing: 1 },
+  riskScore : { fontSize: 14, color: '#ffffff', opacity: 0.9 },
+
   // cards
   card: {
     backgroundColor: '#ffffff',
@@ -368,51 +371,81 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 14,
     elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
   },
   cardTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1a56db',
+    color: '#1a73e8',
     marginBottom: 12,
   },
+
   // score breakdown
   scoreRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
   },
-  scoreRowTotal: {
-    borderBottomWidth: 0,
-    marginTop: 4,
-  },
+  scoreRowTotal   : { borderBottomWidth: 0, marginTop: 4 },
   scoreLabel      : { fontSize: 14, color: '#6b7280' },
   scoreValue      : { fontSize: 14, color: '#374151', fontWeight: '600' },
   scoreLabelTotal : { fontSize: 14, color: '#374151', fontWeight: '700' },
-  scoreValueTotal : { fontSize: 14, color: '#1a56db', fontWeight: '700' },
+  scoreValueTotal : { fontSize: 14, color: '#1a73e8', fontWeight: '700' },
+
   // key finding
   keyFinding: { fontSize: 14, color: '#374151', lineHeight: 22 },
+
   // flags
-  flagText    : { fontSize: 13, color: '#374151', marginBottom: 6 },
-  flagWarning : { fontSize: 13, color: '#d97706', marginBottom: 6 },
-  // suggestions
+  flagText    : { fontSize: 13, color: '#374151', marginBottom: 6, lineHeight: 20 },
+  flagWarning : { fontSize: 13, color: '#d97706', marginBottom: 6, lineHeight: 20 },
+
+  // suggestion chips — each activity in its own row with a blue dot
+  suggestionChip: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#f0f4ff',  // light blue chip background
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+  },
+  suggestionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#1a73e8',  // blue dot
+    marginTop: 5,
+    marginRight: 10,
+    flexShrink: 0,
+  },
   suggestionText: {
     fontSize: 13,
     color: '#374151',
-    lineHeight: 22,
-    marginBottom: 6,
+    lineHeight: 20,
+    flex: 1,
   },
-  // consult box
+
+  // consult box — blue theme, not red
   consultBox: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: '#e8f0fe',  // light blue background
     borderRadius: 12,
     padding: 16,
     marginBottom: 14,
     borderLeftWidth: 4,
-    borderLeftColor: '#ef4444',
+    borderLeftColor: '#1a73e8',  // blue left border
   },
-  consultText: { fontSize: 14, color: '#991b1b', lineHeight: 22 },
+  consultTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a73e8',
+    marginBottom: 6,
+  },
+  consultText: { fontSize: 13, color: '#374151', lineHeight: 20 },
+
   // disclaimer
   disclaimer: {
     fontSize: 11,
@@ -421,9 +454,10 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginBottom: 16,
   },
+
   // home button
   homeButton: {
-    backgroundColor: '#1a56db',
+    backgroundColor: '#1a73e8',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',

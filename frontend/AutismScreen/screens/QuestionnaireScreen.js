@@ -79,20 +79,31 @@ export default function QuestionnaireScreen({ navigation, route }) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
 
-      <Text style={styles.title}>Step 2: Questionnaire</Text>
-      <Text style={styles.subtitle}>M-CHAT-R — 20 Questions</Text>
+      {/* compact header card combining title + progress */}
+      <View style={styles.headerCard}>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.title}>M-CHAT-R Questionnaire</Text>
+            <Text style={styles.subtitle}>Developmental Screening — 20 Questions</Text>
+          </View>
+          {/* progress percentage circle on the right */}
+          <View style={styles.progressCircle}>
+            <Text style={styles.progressCircleText}>
+              {Math.round((answeredCount / MCHAT_QUESTIONS.length) * 100)}%
+            </Text>
+          </View>
+        </View>
 
-      {/* Progress indicator */}
-      <View style={styles.progressBox}>
-        <Text style={styles.progressText}>
-          {answeredCount} / {MCHAT_QUESTIONS.length} answered
-        </Text>
+        {/* progress bar with count below */}
         <View style={styles.progressBarBackground}>
           <View style={[
             styles.progressBarFill,
             { width: `${(answeredCount / MCHAT_QUESTIONS.length) * 100}%` }
           ]} />
         </View>
+        <Text style={styles.progressText}>
+          {answeredCount} of {MCHAT_QUESTIONS.length} questions answered
+        </Text>
       </View>
 
       {/* Render all 20 questions */}
@@ -163,42 +174,62 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingTop: 24,
   },
+  headerCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 6,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1a56db',
-    textAlign: 'center',
-    marginBottom: 4,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1a1a2e',
+    marginBottom: 3,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 20,
   },
-  progressBox: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 20,
-    elevation: 2,
+  progressCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#1a73e8',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  progressText: {
-    fontSize: 13,
-    color: '#374151',
-    marginBottom: 8,
-    textAlign: 'center',
+  progressCircleText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   progressBarBackground: {
     height: 8,
     backgroundColor: '#e5e7eb',
     borderRadius: 4,
     overflow: 'hidden',
+    marginBottom: 6,
   },
   progressBarFill: {
     height: 8,
-    backgroundColor: '#1a56db',
+    backgroundColor: '#1a73e8',
     borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'right',
   },
   questionCard: {
     backgroundColor: '#ffffff',
