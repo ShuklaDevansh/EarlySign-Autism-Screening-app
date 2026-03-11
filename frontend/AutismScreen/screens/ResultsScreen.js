@@ -4,7 +4,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator
+  ScrollView, ActivityIndicator, Modal
 } from 'react-native';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
@@ -57,6 +57,11 @@ export default function ResultsScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
   const [result,  setResult]  = useState(null);
+
+  // modal state — controls visibility, explanation text, and loading inside modal
+  const [modalVisible,   setModalVisible]   = useState(false);
+  const [explanation,    setExplanation]    = useState('');
+  const [explainLoading, setExplainLoading] = useState(false);
 
   useEffect(() => {
     callAPI();
@@ -111,6 +116,33 @@ export default function ResultsScreen({ navigation, route }) {
       console.log('[Firebase] Session saved successfully');
     } catch (error) {
       console.log('[Firebase] Save failed:', error);
+    }
+  };
+
+  // calls /explain endpoint and opens modal with plain-english paragraph
+  const fetchExplanation = async (resultData) => {
+    setModalVisible(true);
+    setExplainLoading(true);
+    try {
+      // build GET url with all result values as query parameters
+      const url =
+        `${API_BASE_URL}/explain` +
+        `?risk_level=${resultData.risk_level}` +
+        `&top_feature=${resultData.top_contributing_feature}` +
+        `&social_gaze=${resultData.raw_features.social_gaze_percentage}` +
+        `&expression_var=${resultData.raw_features.expression_variance}` +
+        `&rep_motion=${resultData.raw_features.repetitive_motion_score}` +
+        `&frames=${resultData.meta.frames_processed}` +
+        `&questionnaire_score=${Math.round(resultData.questionnaire_score_normalized * 20)}` +
+        `&final_score=${resultData.final_score}`;
+      const response = await axios.get(url, { timeout: 15000 });
+      // store the explanation text from API
+      setExplanation(response.data.explanation);
+    } catch (e) {
+      // fallback message if explain call fails
+      setExplanation('Explanation could not be loaded. Please try again.');
+    } finally {
+      setExplainLoading(false);
     }
   };
 
@@ -176,6 +208,14 @@ export default function ResultsScreen({ navigation, route }) {
         <Text style={styles.riskLevel}>{riskLevel}</Text>
         <Text style={styles.riskScore}>Combined Score: {scorePercent}%</Text>
       </View>
+
+      {/* Explain This Result button — sits right below the risk badge */}
+      <TouchableOpacity
+        style={styles.explainButton}
+        onPress={() => fetchExplanation(result)}
+      >
+        <Text style={styles.explainButtonText}>💡 Explain This Result</Text>
+      </TouchableOpacity>
 
       {/* Score Breakdown */}
       <View style={styles.card}>
@@ -274,6 +314,63 @@ export default function ResultsScreen({ navigation, route }) {
         <Text style={styles.homeButtonText}>Back to Home</Text>
       </TouchableOpacity>
 
+      {/* Explanation Modal — slides up from bottom when Explain button is tapped */}
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>What This Result Means</Text>
+
+            {explainLoading ? (
+              // spinner while fetching explanation from API
+              <ActivityIndicator size="large" color="#1a73e8" style={{ marginVertical: 20 }} />
+            ) : (
+              <>
+                {/* plain english paragraph from /explain endpoint */}
+                <Text style={styles.modalText}>{explanation}</Text>
+
+                {/* bar chart title */}
+                <Text style={styles.chartTitle}>Feature Contributions</Text>
+
+                {/* simple bar chart — one row per feature, width = contribution % */}
+                {[
+                  { label: 'Gaze Deviation', value: result?.feature_contributions?.avg_gaze_deviation ?? 0 },
+                  { label: 'Social Gaze',    value: result?.feature_contributions?.social_gaze_percentage ?? 0 },
+                  { label: 'Expression',     value: result?.feature_contributions?.expression_variance ?? 0 },
+                  { label: 'Rep. Motion',    value: result?.feature_contributions?.repetitive_motion_score ?? 0 },
+                ].map((item) => (
+                  <View key={item.label} style={styles.barRow}>
+                    <Text style={styles.barLabel}>{item.label}</Text>
+                    <View style={styles.barBackground}>
+                      {/* bar width is proportional to feature value 0.0-1.0 */}
+                      <View style={[
+                        styles.barFill,
+                        { width: item.value === null ? '0%' : `${Math.round(item.value * 100)}%` }
+                      ]} />
+                    </View>
+                    <Text style={styles.barValue}>
+                      {item.value === null ? 'N/A' : `${Math.round(item.value * 100)}%`}
+                    </Text>
+                  </View>
+                ))}
+              </>
+            )}
+
+            {/* close button at bottom of modal */}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </ScrollView>
   );
 }
@@ -288,7 +385,7 @@ const styles = StyleSheet.create({
   centeredContainer: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',     // truly centered vertically
+    justifyContent: 'center',
     backgroundColor: '#f0f4ff',
     padding: 30,
   },
@@ -349,11 +446,11 @@ const styles = StyleSheet.create({
 
   // risk badge — solid background, all text white
   riskBadge: {
-    borderWidth: 0,               // no border needed with solid background
+    borderWidth: 0,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
@@ -363,6 +460,23 @@ const styles = StyleSheet.create({
   riskLabel : { fontSize: 13, fontWeight: '600', color: '#ffffff', opacity: 0.85, marginBottom: 4 },
   riskLevel : { fontSize: 40, fontWeight: '800', color: '#ffffff', marginBottom: 4, letterSpacing: 1 },
   riskScore : { fontSize: 14, color: '#ffffff', opacity: 0.9 },
+
+  // explain button — white with blue border, sits below risk badge
+  explainButton: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#1a73e8',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  explainButtonText: {
+    color: '#1a73e8',
+    fontWeight: '600',
+    fontSize: 15,
+  },
 
   // cards
   card: {
@@ -404,11 +518,11 @@ const styles = StyleSheet.create({
   flagText    : { fontSize: 13, color: '#374151', marginBottom: 6, lineHeight: 20 },
   flagWarning : { fontSize: 13, color: '#d97706', marginBottom: 6, lineHeight: 20 },
 
-  // suggestion chips — each activity in its own row with a blue dot
+  // suggestion chips
   suggestionChip: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#f0f4ff',  // light blue chip background
+    backgroundColor: '#f0f4ff',
     borderRadius: 8,
     padding: 10,
     marginBottom: 8,
@@ -417,7 +531,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#1a73e8',  // blue dot
+    backgroundColor: '#1a73e8',
     marginTop: 5,
     marginRight: 10,
     flexShrink: 0,
@@ -429,14 +543,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // consult box — blue theme, not red
+  // consult box
   consultBox: {
-    backgroundColor: '#e8f0fe',  // light blue background
+    backgroundColor: '#e8f0fe',
     borderRadius: 12,
     padding: 16,
     marginBottom: 14,
     borderLeftWidth: 4,
-    borderLeftColor: '#1a73e8',  // blue left border
+    borderLeftColor: '#1a73e8',
   },
   consultTitle: {
     fontSize: 14,
@@ -465,4 +579,79 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   homeButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '600' },
+
+  // modal overlay — dark semi-transparent background
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  // modal card — slides up from bottom
+  modalCard: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    maxHeight: '85%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1a1a2e',
+    marginBottom: 14,
+  },
+  modalText: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  chartTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1a1a2e',
+    marginBottom: 12,
+  },
+  // one row in the bar chart
+  barRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  barLabel: {
+    width: 90,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  barBackground: {
+    flex: 1,
+    height: 10,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 5,
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: 10,
+    backgroundColor: '#1a73e8',
+    borderRadius: 5,
+  },
+  barValue: {
+    width: 40,
+    fontSize: 12,
+    color: '#1a1a2e',
+    textAlign: 'right',
+  },
+  // close button at bottom of modal
+  closeButton: {
+    backgroundColor: '#1a73e8',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  closeButtonText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
 });
