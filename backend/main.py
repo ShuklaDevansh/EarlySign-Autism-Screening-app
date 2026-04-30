@@ -140,18 +140,24 @@ async def analyze_video(
     )
 
     try:
-        # Write uploaded bytes to temp file
-        contents = await video.read()
-
-        # Reject files larger than 200MB
-        if len(contents) > 200 * 1024 * 1024:
-            raise HTTPException(
-                status_code=413,
-                detail="Video file too large. Please upload a video under 200MB.",
-            )
+        # Check file size and write in chunks to avoid loading whole video into RAM
+        MAX_SIZE = 200 * 1024 * 1024  # 200MB
+        bytes_written = 0
+        chunk_size = 1 * 1024 * 1024  # read 1MB at a time
 
         with open(temp_path, "wb") as f:
-            f.write(contents)
+            while True:
+                chunk = await video.read(chunk_size)
+                if not chunk:
+                    break
+                bytes_written += len(chunk)
+                if bytes_written > MAX_SIZE:
+                    os.remove(temp_path)
+                    raise HTTPException(
+                        status_code=413,
+                        detail="Video file too large. Please upload a video under 200MB.",
+                    )
+                f.write(chunk)
 
         # record time before processing starts
         start_time = time.time()
