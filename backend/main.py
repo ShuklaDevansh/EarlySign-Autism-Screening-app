@@ -194,6 +194,9 @@ async def analyze_video(
             "repetitive_motion_score": feature_vector["repetitive_motion_score"],
         }
         result["meta"] = feature_vector["_meta"]
+
+        result["frames_analyzed"] = feature_vector["_meta"]["frames_processed"]
+        result["frames_rejected"] = feature_vector["_meta"]["frames_rejected"]
         # calculate total processing time and round to 2 decimal places
         result["processing_time_seconds"] = round(time.time() - start_time, 2)
         return result
