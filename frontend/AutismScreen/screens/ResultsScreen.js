@@ -1,4 +1,5 @@
 import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 import React, { useEffect, useState } from 'react';
@@ -79,7 +80,9 @@ export default function ResultsScreen({ navigation, route }) {
 
   const saveToFirestore = async (resultData, qScore) => {
     try {
-      await addDoc(collection(db, 'screenings'), {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+      await addDoc(collection(db, 'users', userId, 'sessions'), {
         timestamp               : serverTimestamp(),
         risk_level              : resultData.risk_level,
         final_score             : resultData.final_score,

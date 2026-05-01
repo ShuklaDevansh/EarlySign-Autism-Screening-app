@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
 
 export default function HistoryScreen({ navigation }) {
   // holds the list of past screenings fetched from Firestore
@@ -28,9 +28,11 @@ export default function HistoryScreen({ navigation }) {
       setLoading(true);
       setError(null);
 
-      // build a Firestore query: get "screenings" collection, newest first
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
       const q = query(
-        collection(db, "screenings"),
+        collection(db, "users", userId, "sessions"),
         orderBy("timestamp", "desc")
       );
 

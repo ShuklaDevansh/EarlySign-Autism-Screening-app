@@ -7,16 +7,41 @@ import {
   Image,
   ScrollView,
   StatusBar,
+  Alert,
 } from "react-native";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase";
 
 export default function HomeScreen({ navigation }) {
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      "Sign Out",
+      "Are you sure you want to sign out?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign Out",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await signOut(auth);
+              // App.js auth listener automatically shows LoginScreen
+            } catch (error) {
+              Alert.alert("Error", "Could not sign out. Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <StatusBar backgroundColor="#1a73e8" barStyle="light-content" />
 
       {/* ── HERO SECTION ── */}
       <View style={styles.hero}>
-        {/* logo from assets folder */}
         <View style={styles.logoCircle}>
           <Image
             source={require("../assets/logo.png")}
@@ -33,7 +58,6 @@ export default function HomeScreen({ navigation }) {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>How It Works</Text>
 
-        {/* step 1 */}
         <View style={styles.stepCard}>
           <View style={styles.stepNumber}>
             <Text style={styles.stepNumberText}>1</Text>
@@ -46,7 +70,6 @@ export default function HomeScreen({ navigation }) {
           </View>
         </View>
 
-        {/* step 2 */}
         <View style={styles.stepCard}>
           <View style={styles.stepNumber}>
             <Text style={styles.stepNumberText}>2</Text>
@@ -59,7 +82,6 @@ export default function HomeScreen({ navigation }) {
           </View>
         </View>
 
-        {/* step 3 */}
         <View style={styles.stepCard}>
           <View style={styles.stepNumber}>
             <Text style={styles.stepNumberText}>3</Text>
@@ -75,7 +97,6 @@ export default function HomeScreen({ navigation }) {
 
       {/* ── BUTTONS ── */}
       <View style={styles.buttonSection}>
-        {/* primary action */}
         <TouchableOpacity
           style={styles.primaryButton}
           onPress={() => navigation.navigate("RecordVideo")}
@@ -84,7 +105,6 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.primaryButtonText}>▶  Start Screening</Text>
         </TouchableOpacity>
 
-        {/* secondary action — same blue family, outlined */}
         <TouchableOpacity
           style={styles.secondaryButton}
           onPress={() => navigation.navigate("History")}
@@ -102,7 +122,15 @@ export default function HomeScreen({ navigation }) {
         </Text>
       </View>
 
-      {/* bottom padding so content doesn't touch edge */}
+      {/* ── SIGN OUT ── */}
+      <TouchableOpacity
+        style={styles.signOutButton}
+        onPress={handleSignOut}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.signOutText}>Sign Out</Text>
+      </TouchableOpacity>
+
       <View style={{ height: 32 }} />
     </ScrollView>
   );
@@ -111,12 +139,10 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f0f4ff",  // light blue-tinted background used across all screens
+    backgroundColor: "#f0f4ff",
   },
-
-  // hero
   hero: {
-    backgroundColor: "#b7d2ff",  // primary blue
+    backgroundColor: "#b7d2ff",
     alignItems: "center",
     paddingTop: 60,
     paddingBottom: 36,
@@ -132,14 +158,13 @@ const styles = StyleSheet.create({
   logoCircle: {
     width: 160,
     height: 160,
-    borderRadius: 80,            // perfect circle
-    backgroundColor: "#ffffff",  // white fill
+    borderRadius: 80,
+    backgroundColor: "#ffffff",
     borderWidth: 3,
-    borderColor: "#1a73e8",      // blue border
+    borderColor: "#1a73e8",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
-    // shadow to lift it off the background
     shadowColor: "#1a73e8",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -148,7 +173,7 @@ const styles = StyleSheet.create({
   },
   logo: {
     width: 130,
-    height: 130,                 // slightly smaller than circle so padding shows
+    height: 130,
   },
   appName: {
     fontSize: 32,
@@ -169,8 +194,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     lineHeight: 20,
   },
-
-  // how it works section
   section: {
     paddingHorizontal: 20,
     paddingTop: 28,
@@ -188,19 +211,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    // iOS shadow
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 6,
-    // Android shadow
     elevation: 2,
   },
   stepNumber: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#1a73e8",  // blue circle with number
+    backgroundColor: "#1a73e8",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 14,
@@ -225,19 +246,16 @@ const styles = StyleSheet.create({
     color: "#666",
     lineHeight: 18,
   },
-
-  // buttons
   buttonSection: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    gap: 12,                      // space between buttons
+    gap: 12,
   },
   primaryButton: {
     backgroundColor: "#1a73e8",
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: "center",
-    // shadow on button
     shadowColor: "#1a73e8",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -251,26 +269,24 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   secondaryButton: {
-    backgroundColor: "#ffffff",   // white background
+    backgroundColor: "#ffffff",
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#1a73e8",       // blue border to stay in theme
+    borderColor: "#1a73e8",
     elevation: 1,
   },
   secondaryButtonText: {
-    color: "#1a73e8",             // blue text
+    color: "#1a73e8",
     fontSize: 16,
     fontWeight: "700",
     letterSpacing: 0.3,
   },
-
-  // disclaimer
   disclaimer: {
     marginHorizontal: 20,
     marginTop: 20,
-    backgroundColor: "#e8f0fe",  // very light blue background
+    backgroundColor: "#e8f0fe",
     borderRadius: 10,
     padding: 14,
   },
@@ -279,5 +295,20 @@ const styles = StyleSheet.create({
     color: "#555",
     textAlign: "center",
     lineHeight: 18,
+  },
+  signOutButton: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#e5e7eb",
+    backgroundColor: "#ffffff",
+  },
+  signOutText: {
+    color: "#9ca3af",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
