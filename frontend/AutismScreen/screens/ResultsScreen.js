@@ -1,4 +1,3 @@
-import { db } from '../firebase';
 import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
