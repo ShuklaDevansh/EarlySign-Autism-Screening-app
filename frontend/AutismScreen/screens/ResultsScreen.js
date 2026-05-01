@@ -9,32 +9,7 @@ import {
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 
-// hardcoded therapy suggestions per risk level
-const THERAPY_SUGGESTIONS = {
-  LOW: [
-    "Continue regular playtime with age-appropriate toys",
-    "Read books together daily — point at pictures and name them",
-    "Encourage turn-taking games like rolling a ball back and forth",
-    "Sing songs with actions like 'Wheels on the Bus'",
-    "Schedule regular playdates with other children",
-  ],
-  MEDIUM: [
-    "Practice eye contact games — hold a toy near your face and wait for eye contact",
-    "Play peek-a-boo regularly to build joint attention",
-    "Narrate your actions out loud during daily routines",
-    "Point at objects and wait for your child to look before naming them",
-    "Consider a developmental check-up with your pediatrician",
-    "Try structured play sessions of 15-20 minutes daily",
-  ],
-  HIGH: [
-    "Consult a pediatric neurologist or developmental pediatrician promptly",
-    "Request a formal developmental assessment from your doctor",
-    "Practice responding to name — call name gently and reward any response",
-    "Use simple one-word instructions consistently",
-    "Join a parent support group for early intervention guidance",
-    "Contact your local early intervention program for professional support",
-  ],
-};
+
 
 // solid colors for risk badge — white text on colored background
 const RISK_COLORS = {
@@ -193,7 +168,7 @@ export default function ResultsScreen({ navigation, route }) {
   // --- Results State ---
   const riskLevel    = result.risk_level;
   const colors       = RISK_COLORS[riskLevel];
-  const suggestions  = THERAPY_SUGGESTIONS[riskLevel];
+  const suggestions = result.suggestions || [];
   const scorePercent = Math.round(result.final_score * 100);
 
   return (
@@ -252,7 +227,8 @@ export default function ResultsScreen({ navigation, route }) {
         result.flags.flat_expression ||
         result.flags.high_repetitive_motion ||
         result.flags.insufficient_frames ||
-        result.flags.wrist_not_visible) && (
+        result.flags.wrist_not_visible ||
+        result.flags.head_avoidance) && (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>🚩 Flags Detected</Text>
           {result.flags.low_social_gaze && (
@@ -273,6 +249,9 @@ export default function ResultsScreen({ navigation, route }) {
             <Text style={styles.flagWarning}>
               ⚠️ Motion data unavailable — wrists not visible in video
             </Text>
+          )}
+          {result.flags.head_avoidance && (
+            <Text style={styles.flagText}>• Head frequently turned away from camera</Text>
           )}
         </View>
       )}

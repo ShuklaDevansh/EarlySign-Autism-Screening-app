@@ -25,7 +25,6 @@ W_SOCIAL_GAZE  = 0.20
 W_EXPR_VAR     = 0.15
 W_REP_MOTION   = 0.15
 W_HEAD_POSE    = 0.20
-W_BLINK        = 0.10  # reserved for Feature 3
 
 
 def normalize_gaze_deviation(value: float) -> float:
@@ -56,6 +55,69 @@ def classify_risk(score: float) -> str:
         return "MEDIUM"
     else:
         return "HIGH"
+
+FLAG_SUGGESTIONS = {
+    'low_social_gaze': [
+        'Practice face-to-face play: hold a toy near your face while talking',
+        'Play peek-a-boo to encourage eye contact naturally',
+        'Read books face-to-face, pointing at pictures together',
+    ],
+    'flat_expression': [
+        'Mirror play: sit with your child in front of a mirror and make faces together',
+        'Emotion flashcards: show happy, sad, surprised faces and name them',
+        'Tickle games to encourage spontaneous smiling and reactions',
+    ],
+    'high_repetitive_motion': [
+        'Provide sensory alternatives: textured toys, putty, or stress balls',
+        'Try rhythmic activities like drumming or clapping games together',
+        'Consult an occupational therapist for sensory regulation strategies',
+    ],
+    'head_avoidance': [
+        'Engage child at their eye level — get on the floor with them',
+        'Follow the child's lead during play and position yourself in their line of sight',
+        'Use bubbles or toys at face height to naturally draw attention forward',
+    ],
+}
+
+GENERAL_SUGGESTIONS = {
+    'LOW': [
+        'Continue regular playtime with age-appropriate toys',
+        'Read books together daily and point at pictures while naming them',
+        'Encourage turn-taking games like rolling a ball back and forth',
+    ],
+    'MEDIUM': [
+        'Try structured play sessions of 15-20 minutes daily',
+        'Narrate your actions out loud during daily routines',
+        'Consider a developmental check-up with your pediatrician',
+    ],
+    'HIGH': [
+        'Use simple one-word instructions consistently throughout the day',
+        'Join a parent support group for early intervention guidance',
+        'Contact your local early intervention program for professional support',
+    ],
+}
+
+def get_dynamic_suggestions(flags: dict, risk_level: str) -> list:
+    # Builds targeted suggestion list based on which flags were triggered
+    suggestions = []
+
+    for flag_name, flag_value in flags.items():
+        if flag_value and flag_name in FLAG_SUGGESTIONS:
+            suggestions.extend(FLAG_SUGGESTIONS[flag_name])
+
+    # Remove duplicates while preserving order
+    seen   = set()
+    unique = [s for s in suggestions if not (s in seen or seen.add(s))]
+
+    # If no flags triggered suggestions, fall back to general ones for risk level
+    if not unique:
+        unique = GENERAL_SUGGESTIONS.get(risk_level, [])
+
+    # Always add clinical referral at the end for MEDIUM and HIGH
+    if risk_level in ['MEDIUM', 'HIGH']:
+        unique.append('Consult your paediatrician to discuss these screening observations.')
+
+    return unique
 
 
 def compute_risk_score(feature_vector: dict, questionnaire_raw: int) -> dict:
@@ -159,7 +221,8 @@ def compute_risk_score(feature_vector: dict, questionnaire_raw: int) -> dict:
             (["head_pose"]               if norm_head_pose is None else [])
         ),
         "top_contributing_feature"      : top_feature,
-        "flags"                         : flags
+        "flags"                         : flags,
+        "suggestions"                   : get_dynamic_suggestions(flags, risk_level)
     }
 
 
