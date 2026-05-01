@@ -15,6 +15,7 @@ from mediapipe_pipeline.motion_features import (
     compute_repetitive_motion_score
 )
 from mediapipe_pipeline.gaze_landmarks import compute_gaze_deviation
+from mediapipe_pipeline.head_pose import compute_head_pose_feature
 
 
 # Constants
@@ -112,10 +113,13 @@ def extract_features(video_path: str) -> dict:
     frame_distances = []  
     left_wrist_ys   = []    
     right_wrist_ys  = []   
+    per_frame_face_landmarks = []
 
     frame_index      = 0
     frames_processed = 0
     frames_rejected  = 0   
+    frame_width_for_pose     = 0  
+    frame_height_for_pose    = 0  
 
     
     while True:
@@ -144,16 +148,23 @@ def extract_features(video_path: str) -> dict:
             if results.face_landmarks:
                 landmarks = results.face_landmarks.landmark
 
-                # Gaze deviation 
                 gaze_dev = compute_gaze_deviation(landmarks, img_w, img_h)
                 gaze_deviations.append(gaze_dev)
 
-                # Expression distances 
                 raw_dist  = extract_expression_distances(landmarks, img_w, img_h)
                 norm_dist = normalize_distances_by_face_width(
                     raw_dist, landmarks, img_w, img_h
                 )
                 frame_distances.append(norm_dist)
+
+                # Store for head pose computation after the loop
+                per_frame_face_landmarks.append(landmarks)
+                frame_width_for_pose  = img_w
+                frame_height_for_pose = img_h
+
+            else:
+                # No face detected this frame
+                per_frame_face_landmarks.append(None)
 
             
             if results.pose_landmarks:
@@ -197,6 +208,9 @@ def extract_features(video_path: str) -> dict:
 
     
     expression_variance = compute_expression_variance(frame_distances)
+    head_pose = compute_head_pose_feature(
+        per_frame_face_landmarks, frame_width_for_pose, frame_height_for_pose
+    )
 
     
     repetitive_motion_score = compute_repetitive_motion_score(
@@ -209,6 +223,7 @@ def extract_features(video_path: str) -> dict:
         "social_gaze_percentage" : round(social_gaze_percentage,    4),
         "expression_variance"    : round(expression_variance,       4),
         "repetitive_motion_score": round(repetitive_motion_score,   4),
+        "head_pose"              : head_pose,
         "_meta": {
             "frames_processed"  : frames_processed,
             "frames_rejected"   : frames_rejected,

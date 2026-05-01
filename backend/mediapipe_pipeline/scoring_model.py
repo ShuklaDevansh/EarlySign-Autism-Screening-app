@@ -18,6 +18,15 @@ MEDIUM_MAX = 0.65
 VIDEO_WEIGHT         = 0.60
 QUESTIONNAIRE_WEIGHT = 0.40
 
+# Individual feature weights within the video risk score
+# Must sum to 1.0 when all features present
+W_GAZE_DEV     = 0.20
+W_SOCIAL_GAZE  = 0.20
+W_EXPR_VAR     = 0.15
+W_REP_MOTION   = 0.15
+W_HEAD_POSE    = 0.20
+W_BLINK        = 0.10  # reserved for Feature 3
+
 
 def normalize_gaze_deviation(value: float) -> float:
     # Higher deviation = higher risk, clip at max
@@ -79,15 +88,33 @@ def compute_risk_score(feature_vector: dict, questionnaire_raw: int) -> dict:
         "avg_gaze_deviation"     : round(norm_gaze_dev,    4),
         "social_gaze_percentage" : round(norm_social_gaze, 4),
         "expression_variance"    : round(norm_expr_var,    4),
-        "repetitive_motion_score": round(norm_rep_motion,  4) if norm_rep_motion is not None else None
+        "repetitive_motion_score": round(norm_rep_motion,  4) if norm_rep_motion is not None else None,
+        "head_pose"              : round(norm_head_pose,    4) if norm_head_pose is not None else None
+        
     }
 
-    # Build list of valid (non-missing) normalized values for averaging
-    valid_scores = [norm_gaze_dev, norm_social_gaze, norm_expr_var]
-    if norm_rep_motion is not None:
-        valid_scores.append(norm_rep_motion)
+    # Head pose feature
+    head_pose        = feature_vector.get("head_pose")
+    norm_head_pose   = head_pose["head_risk_score"] if head_pose else None
 
-    video_risk_score = sum(valid_scores) / len(valid_scores)
+    # Weighted video risk score — missing features have weight redistributed
+    weighted_sum    = 0.0
+    total_weight    = 0.0
+
+    weighted_sum += norm_gaze_dev   * W_GAZE_DEV;   total_weight += W_GAZE_DEV
+    weighted_sum += norm_social_gaze * W_SOCIAL_GAZE; total_weight += W_SOCIAL_GAZE
+    weighted_sum += norm_expr_var   * W_EXPR_VAR;   total_weight += W_EXPR_VAR
+
+    if norm_rep_motion is not None:
+        weighted_sum += norm_rep_motion * W_REP_MOTION
+        total_weight += W_REP_MOTION
+
+    if norm_head_pose is not None:
+        weighted_sum += norm_head_pose * W_HEAD_POSE
+        total_weight += W_HEAD_POSE
+
+    # Normalize by actual total weight so missing features don't drag score down
+    video_risk_score = weighted_sum / total_weight if total_weight > 0 else 0.0
 
     # ── Normalize questionnaire score 0-20 → 0.0-1.0 ─────────────────
     questionnaire_score_normalized = max(0.0, min(questionnaire_raw / 20.0, 1.0))
@@ -105,7 +132,6 @@ def compute_risk_score(feature_vector: dict, questionnaire_raw: int) -> dict:
     }
     top_feature = max(valid_contributions, key=valid_contributions.get)
 
-    # ── Check literature threshold flags ──────────────────────────────
     flags = {
         "insufficient_frames"   : insufficient_frames,
         "wrist_not_visible"     : wrist_missing,
@@ -114,6 +140,10 @@ def compute_risk_score(feature_vector: dict, questionnaire_raw: int) -> dict:
         "high_repetitive_motion": (
             feature_vector["repetitive_motion_score"] > REP_MOT_RISK_THRESHOLD
             if not wrist_missing else False
+        ),
+        "head_avoidance"        : (
+            head_pose["head_avoidance_flagged"]
+            if head_pose else False
         )
     }
 
@@ -124,7 +154,10 @@ def compute_risk_score(feature_vector: dict, questionnaire_raw: int) -> dict:
         "final_score"                   : round(final_score,                     4),
         "risk_level"                    : risk_level,
         "feature_contributions"         : feature_contributions,
-        "missing_features"              : ["repetitive_motion_score"] if wrist_missing else [],
+        "missing_features": (
+            (["repetitive_motion_score"] if wrist_missing  else []) +
+            (["head_pose"]               if norm_head_pose is None else [])
+        ),
         "top_contributing_feature"      : top_feature,
         "flags"                         : flags
     }
