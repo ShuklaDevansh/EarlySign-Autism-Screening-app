@@ -74,7 +74,7 @@ FLAG_SUGGESTIONS = {
     ],
     'head_avoidance': [
         'Engage child at their eye level — get on the floor with them',
-        'Follow the child's lead during play and position yourself in their line of sight',
+        "Follow the child's lead during play and position yourself in their line of sight",
         'Use bubbles or toys at face height to naturally draw attention forward',
     ],
 }
