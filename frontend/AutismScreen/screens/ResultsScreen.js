@@ -8,6 +8,8 @@ import {
 } from 'react-native';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 
 
@@ -24,6 +26,7 @@ const FEATURE_LABELS = {
   social_gaze_percentage : 'Social Gaze',
   expression_variance    : 'Facial Expression',
   repetitive_motion_score: 'Repetitive Motion',
+  head_pose              : 'Head Orientation',
 };
 
 export default function ResultsScreen({ navigation, route }) {
@@ -37,6 +40,9 @@ export default function ResultsScreen({ navigation, route }) {
   const [modalVisible,   setModalVisible]   = useState(false);
   const [explanation,    setExplanation]    = useState('');
   const [explainLoading, setExplainLoading] = useState(false);
+
+  // pdf button loading state
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   useEffect(() => {
     callAPI();
@@ -123,6 +129,277 @@ export default function ResultsScreen({ navigation, route }) {
     }
   };
 
+  // builds HTML string from result data, converts to PDF, opens share sheet
+  const generateAndSharePDF = async () => {
+    setPdfLoading(true);
+    try {
+      const riskLevel     = result.risk_level;
+      const scorePercent  = Math.round(result.final_score * 100);
+      const videoPercent  = Math.round(result.video_risk_score * 100);
+      const qPercent      = Math.round(result.questionnaire_score_normalized * 100);
+      const screeningDate = new Date().toLocaleDateString('en-IN', {
+        day: '2-digit', month: 'long', year: 'numeric'
+      });
+
+      // badge color based on risk level
+      const badgeColor =
+        riskLevel === 'LOW'    ? '#2ecc71' :
+        riskLevel === 'MEDIUM' ? '#f39c12' : '#e74c3c';
+
+      // feature rows for the table — show N/A when value is null
+      const featureRows = [
+        { label: 'Gaze Deviation',    key: 'avg_gaze_deviation' },
+        { label: 'Social Gaze',       key: 'social_gaze_percentage' },
+        { label: 'Facial Expression', key: 'expression_variance' },
+        { label: 'Repetitive Motion', key: 'repetitive_motion_score' },
+        { label: 'Head Orientation',  key: 'head_pose' },
+      ].map(f => {
+        const val = result.feature_contributions?.[f.key];
+        const display = val === null || val === undefined
+          ? 'N/A'
+          : `${Math.round(val * 100)}%`;
+        return `
+          <tr>
+            <td>${f.label}</td>
+            <td>${display}</td>
+          </tr>`;
+      }).join('');
+
+      // build triggered flags as bullet list — only show flags that are true
+      const flagMap = {
+        low_social_gaze        : 'Low social gaze detected',
+        flat_expression        : 'Reduced facial expression variation',
+        high_repetitive_motion : 'High repetitive motion detected',
+        head_avoidance         : 'Head frequently turned away from camera',
+        insufficient_frames    : 'Video too short — results may be less reliable',
+        wrist_not_visible      : 'Motion data unavailable — wrists not visible in video',
+      };
+      const triggeredFlags = Object.entries(result.flags || {})
+        .filter(([, v]) => v === true)
+        .map(([k]) => `<li>${flagMap[k] || k}</li>`)
+        .join('');
+      const flagsSection = triggeredFlags
+        ? `<ul>${triggeredFlags}</ul>`
+        : '<p style="color:#6b7280;">No flags detected.</p>';
+
+      // suggestions as bullet list
+      const suggestionsList = (result.suggestions || [])
+        .map(s => `<li>${s}</li>`)
+        .join('');
+
+      // full HTML for the PDF — single page, clean clinical look
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              color: #1f2937;
+              padding: 32px;
+              font-size: 14px;
+              line-height: 1.6;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              border-bottom: 2px solid #1a73e8;
+              padding-bottom: 16px;
+              margin-bottom: 24px;
+            }
+            .app-name {
+              font-size: 26px;
+              font-weight: 800;
+              color: #1a73e8;
+            }
+            .app-subtitle {
+              font-size: 12px;
+              color: #6b7280;
+              margin-top: 2px;
+            }
+            .report-date {
+              font-size: 12px;
+              color: #6b7280;
+              text-align: right;
+            }
+            .badge {
+              display: inline-block;
+              background-color: ${badgeColor};
+              color: #ffffff;
+              font-size: 22px;
+              font-weight: 800;
+              padding: 8px 28px;
+              border-radius: 8px;
+              letter-spacing: 1px;
+            }
+            .risk-section {
+              text-align: center;
+              margin-bottom: 28px;
+              padding: 20px;
+              background: #f0f4ff;
+              border-radius: 10px;
+            }
+            .risk-label {
+              font-size: 13px;
+              color: #6b7280;
+              margin-bottom: 8px;
+            }
+            .combined-score {
+              font-size: 13px;
+              color: #374151;
+              margin-top: 8px;
+            }
+            h2 {
+              font-size: 15px;
+              font-weight: 700;
+              color: #1a73e8;
+              border-left: 4px solid #1a73e8;
+              padding-left: 10px;
+              margin-top: 24px;
+              margin-bottom: 12px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 8px;
+            }
+            th {
+              background-color: #1a73e8;
+              color: #ffffff;
+              padding: 8px 12px;
+              text-align: left;
+              font-size: 13px;
+            }
+            td {
+              padding: 8px 12px;
+              border-bottom: 1px solid #e5e7eb;
+              font-size: 13px;
+            }
+            tr:nth-child(even) td {
+              background-color: #f9fafb;
+            }
+            ul {
+              padding-left: 20px;
+              margin: 0;
+            }
+            li {
+              margin-bottom: 6px;
+              font-size: 13px;
+            }
+            .disclaimer {
+              margin-top: 32px;
+              padding: 14px;
+              background: #fff7ed;
+              border: 1px solid #fed7aa;
+              border-radius: 8px;
+              font-size: 11px;
+              color: #92400e;
+              line-height: 1.5;
+            }
+            .footer {
+              margin-top: 20px;
+              font-size: 11px;
+              color: #9ca3af;
+              text-align: center;
+              border-top: 1px solid #e5e7eb;
+              padding-top: 12px;
+            }
+          </style>
+        </head>
+        <body>
+
+          <div class="header">
+            <div>
+              <div class="app-name">EarlySign</div>
+              <div class="app-subtitle">AI-Enabled Early Autism Screening Platform</div>
+            </div>
+            <div class="report-date">
+              Screening Report<br/>
+              ${screeningDate}
+            </div>
+          </div>
+
+          <div class="risk-section">
+            <div class="risk-label">RISK LEVEL</div>
+            <div class="badge">${riskLevel}</div>
+            <div class="combined-score">Combined Score: ${scorePercent}%</div>
+          </div>
+
+          <h2>Score Breakdown</h2>
+          <table>
+            <tr><th>Component</th><th>Score</th></tr>
+            <tr><td>Video Analysis</td><td>${videoPercent}%</td></tr>
+            <tr><td>Questionnaire (M-CHAT-R)</td><td>${qPercent}%</td></tr>
+            <tr><td><strong>Combined Score</strong></td><td><strong>${scorePercent}%</strong></td></tr>
+          </table>
+
+          <h2>Key Finding</h2>
+          <p>
+            <strong>${FEATURE_LABELS[result.top_contributing_feature] || result.top_contributing_feature}</strong>
+            was the strongest signal in this screening.
+          </p>
+
+          <h2>Feature Contributions</h2>
+          <table>
+            <tr><th>Feature</th><th>Risk Contribution</th></tr>
+            ${featureRows}
+          </table>
+
+          <h2>Flags Detected</h2>
+          ${flagsSection}
+
+          <h2>Suggested Activities</h2>
+          <ul>${suggestionsList}</ul>
+
+          ${(result.risk_level === 'MEDIUM' || result.risk_level === 'HIGH') ? `
+          <div style="
+            background: #e8f0fe;
+            border-left: 4px solid #1a73e8;
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-top: 20px;
+          ">
+            <strong style="color:#1a73e8;">Professional Evaluation Recommended</strong>
+            <p style="margin: 6px 0 0 0; color:#374151; font-size:13px;">
+              We recommend consulting a paediatrician or developmental specialist
+              for a formal clinical evaluation based on these screening results.
+            </p>
+          </div>` : ''}
+
+          <div class="disclaimer">
+            <strong>Important Disclaimer:</strong> EarlySign is a screening tool only.
+            It does not diagnose Autism Spectrum Disorder or any other medical condition.
+            All results are indicative only and must be reviewed by a qualified paediatric
+            healthcare professional. This is an academic prototype that has not undergone
+            clinical trials and is not cleared for medical use by any regulatory body.
+          </div>
+
+          <div class="footer">
+            Generated by EarlySign &mdash; Academic B.Tech Project &mdash; Not for clinical use
+          </div>
+
+        </body>
+        </html>
+      `;
+
+      // convert HTML to PDF file — expo-print saves it to a temp path on device
+      const { uri } = await Print.printToFileAsync({ html });
+
+      // open the phone's native share sheet with the PDF file
+      await Sharing.shareAsync(uri, {
+        mimeType : 'application/pdf',
+        dialogTitle: 'Save or Share EarlySign Report',
+      });
+
+    } catch (e) {
+      console.log('[PDF] Generation failed:', e);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   // --- Loading State ---
   if (loading) {
     return (
@@ -192,6 +469,19 @@ export default function ResultsScreen({ navigation, route }) {
         onPress={() => fetchExplanation(result)}
       >
         <Text style={styles.explainButtonText}>💡 Explain This Result</Text>
+      </TouchableOpacity>
+
+      {/* Download Report button — sits below Explain button */}
+      <TouchableOpacity
+        style={styles.downloadButton}
+        onPress={generateAndSharePDF}
+        disabled={pdfLoading}
+      >
+        {pdfLoading ? (
+          <ActivityIndicator size="small" color="#ffffff" />
+        ) : (
+          <Text style={styles.downloadButtonText}>📄 Download Report (PDF)</Text>
+        )}
       </TouchableOpacity>
 
       {/* Score Breakdown */}
@@ -451,10 +741,26 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 20,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   explainButtonText: {
     color: '#1a73e8',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+
+  // download button — solid green, sits below explain button
+  downloadButton: {
+    backgroundColor: '#0f9d58',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 16,
+    elevation: 2,
+  },
+  downloadButtonText: {
+    color: '#ffffff',
     fontWeight: '600',
     fontSize: 15,
   },
