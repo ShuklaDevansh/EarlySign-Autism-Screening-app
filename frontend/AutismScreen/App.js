@@ -5,12 +5,13 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase';
 
-import HomeScreen         from './screens/HomeScreen';
-import RecordVideoScreen  from './screens/RecordVideoScreen';
+import HomeScreen          from './screens/HomeScreen';
+import RecordVideoScreen   from './screens/RecordVideoScreen';
+import AgeInputScreen      from './screens/AgeInputScreen';
 import QuestionnaireScreen from './screens/QuestionnaireScreen';
-import ResultsScreen      from './screens/ResultsScreen';
-import HistoryScreen      from './screens/HistoryScreen';
-import LoginScreen        from './screens/LoginScreen';
+import ResultsScreen       from './screens/ResultsScreen';
+import HistoryScreen       from './screens/HistoryScreen';
+import LoginScreen         from './screens/LoginScreen';
 
 const Stack = createStackNavigator();
 
@@ -27,7 +28,8 @@ function MainNavigator() {
     >
       <Stack.Screen name="Home"          component={HomeScreen}          options={{ title: 'Autism Screening' }} />
       <Stack.Screen name="RecordVideo"   component={RecordVideoScreen}   options={{ title: 'Record Video' }} />
-      <Stack.Screen name="Questionnaire" component={QuestionnaireScreen} options={{ title: 'M-CHAT-R Questionnaire' }} />
+      <Stack.Screen name="AgeInput"      component={AgeInputScreen}      options={{ title: 'Child\'s Age' }} />
+      <Stack.Screen name="Questionnaire" component={QuestionnaireScreen} options={{ title: 'Questionnaire' }} />
       <Stack.Screen name="Results"       component={ResultsScreen}       options={{ title: 'Screening Results' }} />
       <Stack.Screen name="History"       component={HistoryScreen}       options={{ title: 'History' }} />
     </Stack.Navigator>

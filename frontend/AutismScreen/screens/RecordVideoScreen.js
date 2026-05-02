@@ -44,8 +44,7 @@ export default function RecordVideoScreen({ navigation }) {
   };
 
   const handleNext = () => {
-    // pass the video file forward to QuestionnaireScreen
-    navigation.navigate('Questionnaire', { videoFile: selectedVideo });
+    navigation.navigate('AgeInput', { videoFile: selectedVideo });
   };
 
   return (
